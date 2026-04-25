@@ -30,6 +30,22 @@ TECH_KEYWORDS = [
     "agentic", "fintech", "digital", "startup",
 ]
 
+ACTION_KEYWORDS = [
+    "register", "registration", "rsvp", "sign up", "apply", "join",
+    "limited spots", "spots are limited", "open to all", "deadline",
+    "date:", "time:", "platform:", "venue:", "location:",
+    "speaker:", "session details", "event details"
+]
+
+NEGATIVE_KEYWORDS = [
+    "merchandise", "pre-order", "pre order",
+    "recap", "throwback", "highlights",
+    "winners", "winner announcement", "congratulations",
+    "top teams", "finalists", "shortlisted",
+    "progressing to the next stage", "good luck",
+    "sponsor spotlight", "partner spotlight"
+]
+
 
 def load_accounts():
     if not ACCOUNTS_FILE.exists():
@@ -96,9 +112,18 @@ def classify_post(item):
 
     matched_event = [kw for kw in EVENT_KEYWORDS if kw in text]
     matched_tech = [kw for kw in TECH_KEYWORDS if kw in text]
-    matched_keywords = matched_event + matched_tech
+    matched_action = [kw for kw in ACTION_KEYWORDS if kw in text]
+    matched_negative = [kw for kw in NEGATIVE_KEYWORDS if kw in text]
 
-    if len(matched_event) >= 1 and len(matched_tech) >= 1:
+    matched_keywords = matched_event + matched_tech + matched_action
+
+    # skip obvious non-actionable posts unless they also contain strong action/event details
+    if matched_negative and not matched_action:
+        return "low", "non-actionable update", matched_keywords + matched_negative
+
+    if len(matched_action) >= 2 and (matched_event or matched_tech):
+        confidence = "high"
+    elif len(matched_event) >= 1 and len(matched_tech) >= 1 and matched_action:
         confidence = "high"
     elif len(matched_event) >= 1 or len(matched_tech) >= 2:
         confidence = "possible"
@@ -108,7 +133,7 @@ def classify_post(item):
     category = "other"
     if any(kw in text for kw in ["hackathon", "competition", "technothon"]):
         category = "hackathon/competition"
-    elif any(kw in text for kw in ["workshop", "bootcamp", "training"]):
+    elif any(kw in text for kw in ["workshop", "bootcamp", "training", "session"]):
         category = "workshop/training"
     elif any(kw in text for kw in ["panel", "talk", "seminar", "webinar"]):
         category = "talk/panel"
