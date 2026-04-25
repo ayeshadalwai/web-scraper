@@ -8,7 +8,7 @@ from apify_client import ApifyClient
 
 
 APIFY_TOKEN = os.getenv("APIFY_TOKEN")
-DAYS_BACK = 90
+DAYS_BACK = 30
 RESULTS_LIMIT_PER_ACCOUNT = 5
 
 BASE_DIR = Path(__file__).resolve().parent.parent
