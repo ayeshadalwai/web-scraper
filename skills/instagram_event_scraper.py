@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import argparse
 
 from apify_client import ApifyClient
 
@@ -46,6 +47,11 @@ NEGATIVE_KEYWORDS = [
     "sponsor spotlight", "partner spotlight"
 ]
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Use cached Apify output, skip duplicate tracking")
+    return parser.parse_args()
 
 def load_accounts():
     if not ACCOUNTS_FILE.exists():
@@ -188,16 +194,30 @@ def save_outputs(events):
 
 
 def main():
-    if not APIFY_TOKEN:
+    args = parse_args()
+
+    if not args.dry_run and not APIFY_TOKEN:
         return {"error": "APIFY_TOKEN is not set"}
 
     accounts = load_accounts()
-    seen = load_seen()
-    client = ApifyClient(APIFY_TOKEN)
+    cache_path = OUTPUT_DIR / "apify_cache.json"
 
-    print(f"Scraping {len(accounts)} Instagram accounts...")
-
-    items = scrape_accounts(client, accounts)
+    if args.dry_run:
+        if not cache_path.exists():
+            return {"error": f"No cache found at {cache_path}. Run without --dry-run first."}
+        with open(cache_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+        seen = set()  # ignore seen_posts so cached posts aren't all skipped
+        print(f"[DRY RUN] Loaded {len(items)} cached posts, duplicate tracking disabled")
+    else:
+        seen = load_seen()
+        client = ApifyClient(APIFY_TOKEN)
+        print(f"Scraping {len(accounts)} Instagram accounts...")
+        items = scrape_accounts(client, accounts)
+        OUTPUT_DIR.mkdir(exist_ok=True)
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2)
+        print(f"Cached {len(items)} raw posts to {cache_path}")
 
     events = []
     skipped_duplicates = 0
@@ -238,7 +258,8 @@ def main():
             }
         )
 
-    save_seen(seen)
+    if not args.dry_run:
+        save_seen(seen)
     json_path, csv_path = save_outputs(events)
 
     return {
